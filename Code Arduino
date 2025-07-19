@@ -1,0 +1,85 @@
+#define MAZE_SIZE 16
+#define UNDEFINED 255
+
+// Directions
+#define NORTH 0
+#define EAST 1
+#define SOUTH 2
+#define WEST 3
+
+// Structure for each maze cell
+struct Cell {
+  uint8_t walls;     // Bit field: 0x01=N, 0x02=E, 0x04=S, 0x08=W
+  uint8_t floodVal;
+};
+
+// Maze array
+Cell maze[MAZE_SIZE][MAZE_SIZE];
+
+// Initialize maze with no walls and flood values
+void initializeMaze() {
+  for (int x = 0; x < MAZE_SIZE; x++) {
+    for (int y = 0; y < MAZE_SIZE; y++) {
+      maze[x][y].walls = 0;             // Assume no walls initially
+      maze[x][y].floodVal = UNDEFINED;  // UNDEFINED value
+    }
+  }
+}
+
+// Set goal(s) and start flood fill initialization
+void initializeFloodFill(int goalX, int goalY) {
+  for (int x = 0; x < MAZE_SIZE; x++) {
+    for (int y = 0; y < MAZE_SIZE; y++) {
+      maze[x][y].floodVal = UNDEFINED;
+    }
+  }
+  maze[goalX][goalY].floodVal = 0;
+}
+
+// Flood fill function
+void updateFloodFill() {
+  bool changed;
+  do {
+    changed = false;
+    for (int x = 0; x < MAZE_SIZE; x++) {
+      for (int y = 0; y < MAZE_SIZE; y++) {
+        uint8_t minNeighbor = 254;
+        // Check all four directions
+        if (!(maze[x][y].walls & 0x01) && y < MAZE_SIZE - 1) // NORTH
+          minNeighbor = min(minNeighbor, maze[x][y+1].floodVal);
+        if (!(maze[x][y].walls & 0x02) && x < MAZE_SIZE - 1) // EAST
+          minNeighbor = min(minNeighbor, maze[x+1][y].floodVal);
+        if (!(maze[x][y].walls & 0x04) && y > 0) // SOUTH
+          minNeighbor = min(minNeighbor, maze[x][y-1].floodVal);
+        if (!(maze[x][y].walls & 0x08) && x > 0) // WEST
+          minNeighbor = min(minNeighbor, maze[x-1][y].floodVal);
+
+        uint8_t newFlood = (minNeighbor != 254) ? (uint8_t)(minNeighbor + 1) : UNDEFINED;
+        if (maze[x][y].floodVal != newFlood) {
+          maze[x][y].floodVal = newFlood;
+          changed = true;
+        }
+      }
+    }
+  } while (changed);
+}
+
+// Function to update walls for a given cell (should be called after sensing)
+void updateCellWalls(int x, int y, bool wallN, bool wallE, bool wallS, bool wallW) {
+  maze[x][y].walls = 0;
+  if (wallN) maze[x][y].walls |= 0x01;
+  if (wallE) maze[x][y].walls |= 0x02;
+  if (wallS) maze[x][y].walls |= 0x04;
+  if (wallW) maze[x][y].walls |= 0x08;
+}
+
+// Example decision function: choose direction with minimum flood value
+int chooseDirection(int x, int y) {
+  uint8_t minVal = 255;
+  int dir = -1;
+  if (!(maze[x][y].walls & 0x01) && y < MAZE_SIZE - 1 && maze[x][y+1].floodVal < minVal) { minVal = maze[x][y+1].floodVal; dir = NORTH; }
+  if (!(maze[x][y].walls & 0x02) && x < MAZE_SIZE - 1 && maze[x+1][y].floodVal < minVal) { minVal = maze[x+1][y].floodVal; dir = EAST; }
+  if (!(maze[x][y].walls & 0x04) && y > 0 && maze[x][y-1].floodVal < minVal) { minVal = maze[x][y-1].floodVal; dir = SOUTH; }
+  if (!(maze[x][y].walls & 0x08) && x > 0 && maze[x-1][y].floodVal < minVal) { minVal = maze[x-1][y].floodVal; dir = WEST; }
+  return dir;
+}
