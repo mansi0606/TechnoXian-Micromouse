@@ -1,0 +1,97 @@
+#define MAZE_SIZE 16
+#define INF 255
+
+struct Cell {
+  uint8_t walls; // 0x01=N, 0x02=E, 0x04=S, 0x08=W
+  bool visited;
+  uint8_t x, y;
+};
+
+struct Node {
+  uint8_t x, y;
+  uint8_t g; // Cost from start
+  uint8_t h; // Heuristic to goal
+  uint8_t f; // g + h
+  int parentIndex;
+};
+uint8_t heuristic(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2) {
+  return abs(x1 - x2) + abs(y1 - y2);
+}
+#define OPEN_SET_SIZE 256 // Adjust as needed
+
+Node openSet[OPEN_SET_SIZE];
+bool closedSet[MAZE_SIZE][MAZE_SIZE];
+int openSetCount = 0;
+
+// Store best path for backtracking
+int nodeMap[MAZE_SIZE][MAZE_SIZE]; // Index in openSet
+
+// Add start node to openSet
+void addStartNode(uint8_t startX, uint8_t startY, uint8_t goalX, uint8_t goalY) {
+  Node start = {startX, startY, 0, heuristic(startX, startY, goalX, goalY), 0, -1};
+  openSet[0] = start;
+  nodeMap[startX][startY] = 0;
+  openSetCount = 1;
+  memset(closedSet, 0, sizeof(closedSet));
+}
+
+// A* Main Function
+bool aStarSolve(Cell maze[MAZE_SIZE][MAZE_SIZE], uint8_t startX, uint8_t startY, uint8_t goalX, uint8_t goalY) {
+  addStartNode(startX, startY, goalX, goalY);
+
+  while (openSetCount > 0) {
+    // Find lowest f node in openSet
+    int best = 0;
+    for (int i = 1; i < openSetCount; i++) {
+      if (openSet[i].f < openSet[best].f) best = i;
+    }
+    Node current = openSet[best];
+
+    // Remove from openSet
+    openSet[best] = openSet[--openSetCount];
+
+    // Reached goal
+    if (current.x == goalX && current.y == goalY) {
+      reconstructPath(current);
+      return true;
+    }
+
+    closedSet[current.x][current.y] = true;
+
+    // Explore neighbors: N/E/S/W
+    for (int dir = 0; dir < 4; dir++) {
+      int nx = current.x, ny = current.y;
+      if (dir == 0 && !(maze[current.x][current.y].walls & 0x01) && current.y < MAZE_SIZE-1) ny++; // N
+      if (dir == 1 && !(maze[current.x][current.y].walls & 0x02) && current.x < MAZE_SIZE-1) nx++; // E
+      if (dir == 2 && !(maze[current.x][current.y].walls & 0x04) && current.y > 0) ny--; // S
+      if (dir == 3 && !(maze[current.x][current.y].walls & 0x08) && current.x > 0) nx--; // W
+
+      if (nx == current.x && ny == current.y) continue;
+      if (closedSet[nx][ny]) continue;
+
+      uint8_t tentative_g = current.g + 1;
+      bool inOpenSet = false;
+      for (int i = 0; i < openSetCount; i++)
+        if (openSet[i].x == nx && openSet[i].y == ny) {
+          inOpenSet = true;
+          if (tentative_g < openSet[i].g) {
+            openSet[i].g = tentative_g;
+            openSet[i].f = tentative_g + openSet[i].h;
+            openSet[i].parentIndex = nodeMap[current.x][current.y];
+          }
+        }
+      if (!inOpenSet) {
+        Node neighbor = {nx, ny, tentative_g, heuristic(nx, ny, goalX, goalY), 0, nodeMap[current.x][current.y]};
+        neighbor.f = neighbor.g + neighbor.h;
+        openSet[openSetCount] = neighbor;
+        nodeMap[nx][ny] = openSetCount;
+        openSetCount++;
+      }
+    }
+  }
+  return false; // No path found
+}
+void reconstructPath(Node goalNode) {
+  // Trace back parent indices for movement instructions
+  // Store steps in an array or buffer for the micromouse to follow.
+}
